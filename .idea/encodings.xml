@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="Encoding">
+    <file url="file://$PROJECT_DIR$/crawling/data/basic/kor_basic.csv" charset="EUC-KR" />
+    <file url="file://$PROJECT_DIR$/crawling/data/daily/kor_daily_240118.csv" charset="EUC-KR" />
+    <file url="file://$PROJECT_DIR$/crawling/data/span/005930.csv" charset="EUC-KR" />
+    <file url="file://$PROJECT_DIR$/crawling/data/test/005930.csv" charset="EUC-KR" />
+  </component>
+</project>
