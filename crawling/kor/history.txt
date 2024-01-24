@@ -1,0 +1,41 @@
+import sender
+import datetime as dt
+from util import *
+
+base_path = os.path.dirname(os.path.abspath(__file__))
+base_date = dt.datetime(year=2010, month=1, day=4)
+
+def collect_until(target="005930", date=dt.datetime.now()):
+    near_workday=nearest_opendate_before(date)
+    # cat=pd.read_csv(base_path+"/data/catalog.csv",dtype='str',index_col=0)
+    cat = pd.read_csv(base_path + "/data/catalog.csv", dtype='str')
+    target_isucd=code_to_isucd(target)
+    if target_isucd is None:
+        return None
+    search_code=cat[cat['code']==target]
+    if not search_code.empty and dt.datetime.strptime(search_code.head(1)['date'],"%Y-%m-%d")>=near_workday:
+        return
+    curr_date= base_date if search_code.empty else dt.datetime.strptime(search_code.head(1)['date'],"%Y-%m-%d")
+    ret = pd.DataFrame(columns=['일자','종가','대비','등락률','시가','고가','저가','거래량','거래대금','시가총액','상장주식수'])
+    while curr_date <= near_workday:
+        end_date = curr_date.replace(year=curr_date.year+2);
+        end_date = min(near_workday,end_date)
+
+        path=sender.sendquery('span',target_code=target_isucd,start_date=curr_date,end_date=end_date)
+
+        tmp = pd.read_csv(path,encoding='euc-kr',dtype='str')
+        ret = pd.concat([ret,tmp],ignore_index=True)
+
+        curr_date = end_date + dt.timedelta(days=1)
+    ret.to_csv(base_path+"/data/span/"+target+".csv",,index=False,encoding='euc-kr')
+    if search_code.empty:
+        cat.append({'code':target,'date':near_workday},ignore_index=True)
+    else:
+        cat[cat['code']==target].iloc[0]=near_workday
+
+
+def collect_targets():
+    sender.sendquery(type='basic')
+
+if __name__ == '__main__':
+    collect_until("005930",dt.datetime(2010,2,1))
