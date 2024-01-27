@@ -4,21 +4,20 @@ build files from scratch
 import os.path
 import time
 
-import sender
-import query
-from util import *
+from crawling.kor import sender
+from crawling.kor.util import *
+from crawling.kor import db
 
 base_path = os.path.dirname(os.path.abspath(__file__))
 base_date = dt.datetime(year=2010, month=1, day=4)
-
 
 
 def build_span(target="005930", adj=True):
     """
     Build a span of target stock
     :param target: stock code
-    :param adj: whether to adjust
-    :return:
+    :param adj: whether to adjust price or not
+    :return: result of query, succeeded or failed
     """
     near_workday = nearest_updateable_date_before_now()
     if adj == False:
@@ -28,12 +27,12 @@ def build_span(target="005930", adj=True):
     target_isucd = code_to_isucd(target)
     if target_isucd is None:
         return False
-    print("building target : ",target)
+    print("building target : ", target)
     count = 0
     while count < 10:
         count += 1
         path = sender.sendquery('span', target_code=target_isucd, start_date=base_date, end_date=near_workday,
-                                        adj=adj)
+                                adj=adj)
 
         if path is None:
             time.sleep(10)
@@ -50,38 +49,70 @@ def build_span(target="005930", adj=True):
     return True
 
 
-def collect_targets_sorted(date = nearest_updateable_date_before_now()):
-    daily_df = query.get_daily_quotation(date)
+def build_daily_quotation(date, realtime=False):
+    """
+    build daily quotation for the given date
+    :param date: datetime
+    :param realtime: bool
+    :return: path to the saved file
+    """
+    if not realtime and not is_ok_to_update(date):  # daily data only acquired after market close
+        return None
+    if realtime and not is_valid_date(date):
+        return None
+    fname = file_name('daily', date=date)
+    path = base_path + '/data/daily/' + fname
+    cnt = 0
+    while not os.path.isfile(path) and cnt < 10:  # if already exists, don't send query again
+        cnt += 1
+        print(str(cnt) + "th trying..\n")
+        sender.sendquery('daily', date=date)
+        db.builder.make_table_daily(date)
+
+    if not os.path.isfile(path):
+        print("build failed!\n")
+        return None
+    return path
+
+
+def collect_targets_sorted(date=nearest_updateable_date_before_now()):
+    """
+    Return stock information table sorted by market cap on a given date
+    :param date:
+    :return: sorted stock information
+    """
+    path = build_daily_quotation(date)
+    daily_df = pd.read_csv(path, encoding='euc-kr', dtype='str')
     daily_df = daily_df.astype({'시가총액': 'int64'})
     sorted_df = daily_df.sort_values(by=['시가총액'], ascending=False)
     return sorted_df
 
 
 def collect_top_n_stock_until(n, adj=True):
-    # stockinfo = pd.read_csv(base_path + "/data/basic/kor_basic.csv",encoding='euc-kr',dtype='str')
+    """
+    collect top n stocks by market cap
+    :param n: number of collecting stocks
+    :param adj: whether to adjust the price or not
+    :return: None
+    """
     stockinfo = collect_targets_sorted()
     count = 0
     for i, (_i_, stock) in enumerate(stockinfo.iterrows()):
+        if i >= n: break
         stockcode = stock['종목코드']
         print("collecting : ", stockcode, " : ", stock['종목명'], "\n")
         verd = build_span(target=stockcode, adj=adj)
-
         if not verd:
             return
-        if i >= n:
-            break
-
-        count += 1
-        if count >= 20:
-            print("long sleep\n")
-            time.sleep(20)
-            count = 0
-        else:
-            time.sleep(7)
     pass
 
 
 def build_adj_span_target(target):
+    """
+    Build adj_span file for target
+    :param target: target stock code
+    :return: None
+    """
     print("building ", target, " :\n")
     path_raw = base_path + "/data/raw_span/" + target + ".csv"
     path_query = base_path + "/data/adj_span_from_query/" + target + ".csv"
@@ -101,45 +132,25 @@ def build_adj_span_target(target):
     df_query.to_csv(path_save, encoding='euc-kr', index=False)
 
 
-def build_adj_span():
-    stockinfo = collect_targets_sorted()
-    for i, (_i_, stock) in enumerate(stockinfo.iterrows()):
-        if i > 400:
-            break
-        stock_code = stock['종목코드']
-        build_adj_span_target(stock_code)
+def build_basic_information_today():
+    """
+    save today's basic information query result
+    :return: bool
+    """
+    fname = file_name('basic')
+    path = base_path + '/data/basic/' + fname
+    cnt = 0
+    while not os.path.isfile(path) and cnt < 10:
+        cnt += 1
+        print(str(cnt) + "th trying for basic info get..\n")
+        sender.sendquery('basic')
+    if os.path.isfile(path):
+        db.builder.make_table_basic(dt.datetime.now()) # db
+        return True
 
-
-def correct():
-    stockinfo = collect_targets_sorted()
-    for i, (j, stock) in enumerate(stockinfo.iterrows()):
-        stockcode = stock['종목코드']
-        path = base_path + "/data/span/" + stockcode + ".csv"
-        if os.path.exists(path):
-            print("inspecting : ", stockcode, "\n")
-            df = pd.read_csv(path, encoding='euc-kr', dtype='str')
-            dates = df['일자'].map(lambda x: dt.datetime.strptime(x, "%Y/%m/%d"))
-            flag = False
-            for i in range(1, len(df) - 1):
-                if dates.iloc[i - 1].date() != nearest_opendate_before(dates.iloc[i] - dt.timedelta(days=1)).date():
-                    print(stockcode + " : date error detected : ", df.iloc[i - 1]['일자'], "and", df.iloc[i]['일자'], "\n")
-                    flag = True
-            if flag:
-                while len(df) >= 2:  # only fixes last 2 rows' duplication error
-                    if df['일자'].iloc[len(df) - 1] == df['일자'].iloc[len(df) - 2]:
-                        df = df.drop(len(df) - 1)
-                    else:
-                        break
-                df.to_csv(path, encoding='euc-kr', index=False)
+    print("basic query failed!\n");
+    return False
 
 
 if __name__ == '__main__':
-    # collect_until("005930", dt.datetime(2014, 3, 1))
-    # collect_until("366030",dt.datetime.now())
-    # collect_top_n_stock_until(400, dt.datetime.now(),adj=False)
-    # sorted_df = collect_targets_sorted()
-    # sorted_df.to_csv(base_path + "/data/sorted.csv",encoding="euc-kr", index=False)
-    # correct()
-    # build_adj_span()
-    df = collect_targets_sorted()
     pass

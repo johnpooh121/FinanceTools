@@ -1,35 +1,91 @@
 # Crawling Finance Information
 
-## 1. KOSPI / KOSDAQ / KONEX
+# I. KOSPI / KOSDAQ / KONEX
 
-There are three options to get finance information.
+## 1. 개요
 
-- get every stock's price-related information for a certain day (전종목 시세)
-- get every stock's basic information of today (전종목 기본정보) 
-- get a certain stock's price-related information for a certain time span (개별종목 시세 추이) 
-#### Warning : Adj Close is only possible in second form query.
+이 프로젝트에서 수행한 내용은 다음과 같다.
+ - KRX로부터 주식 데이터를 가져와서 자동으로 업데이트하고 관리하는 시스템 만들기
+ - 가져온 주식 데이터를 데이터베이스에 저장하고 쿼리로 사용할 수 있도록 api 만들기
+ - KRX에서 수정주가를 계산하는 방법 유추해보기
 
-To process query, it first checks whether it already exists in the
-directory. If not, it sends query to the KRX, get data and save locally.
+## 2. 크롤링 시스템
 
- ---
+KRX에서 크롤링 할 수 있는 데이터 중 이 패키지에서 자동화한 데이터는 아래와 같다.
 
-File name's format of saved data is following:
- - daily(전종목 시세) :
-   - if year<=2020 : {date}dt  (date : YYYYMMDD)
-   - kor_daily_{requested date}
- - basic (전종목 기본정보) :
-   - kor_basic
- - specific target's data (개별종목 시세) : 
-   - {target_code}.csv
+ - 전종목 시세(이하 daily 쿼리) : 특정일에 대해서 모든 종목들의 시세를 가져온다.
+ - 개별종목 시세(이하 span 쿼리) : 특정 주식에 대해서 주어진 기간 동안의 시세를 가져온다.
+   - 기본 주가 외에도 증자, 감자, 액면분할/병합 등을 고려한 수정주가를 가져올 수도 있다.
+ - 기본정보 (이하 basic 쿼리) : 시세 외에 액면가, 표준코드, 소속부 등의 정보를 모든 종목에 대해서 가져온다.
 
-> for newly created, every date is in YYMMDD form
+위의 쿼리들의 결과가 저장되는 경로는 아래와 같다.
 
-> every file is saved in csv form
+ - daily 쿼리 : data/daily/kor_daily_{날짜}.csv
+ - span 쿼리 :
+   - 그냥 주가(이하 raw 주가) : data/raw_span/{stockcode}.csv
+   - 수정 주가(이하 adj 주가) : data/adj_span_from_query/{stockcode}.csv
+ - basic 쿼리 : data/daily/basic/kor_basic_{날짜}.csv
+> 날짜는 YYMMDD 형태
 
-Catalog file "catalog.csv" will manage each target's latest date
+## 3. 수정 거래량
 
-## 2. My Learnings
+KRX에서 증자, 감자, 액면분할 등을 고려한 수정주가는 제공되지만 이와 연계되는 수정 거래량 정보는 제공되고
+있지 않다. 
+따라서 수정된 거래량을 (원래 거래량)*(원래 주가)/(수정 주가) 로 계산해보았다.
+
+챕터 2에서 언급하였듯이 KRX쿼리를 통한 개별종목 시세는 /data/adj_span_from_query/{stockcode}.csv에 저장되며,
+이 데이터는 주가 관련 데이터(종가, 시가, 고가, 저가, 대비)는 수정되어 있지만 거래량은 그대로이다.
+
+따라서 위의 공식대로 수정된 거래량을 수정된 주가 데이터들과 함께
+/data/adj_span/{stockcode}.csv에 저장하였다.
+
+## 4. 주식정보 업데이트
+
+주식정보가 저장되는 폴더를 정리해보면 다음과 같다.
+
+ - daily : daily 쿼리
+ - basic : basic 쿼리
+ - raw_span : 각 종목에 대해 2010.1.4부터 현재까지 그냥 주가의 정보를 저장한다. 
+ - adj_span_from_query : 각 종목에 대해 2010.1.4부터 현재까지 쿼리로 얻은 수정주가의 정보를 저장한다.
+이 때 거래량은 raw_span과 같다.
+ - adj_span : 각 종목에 대해 2010.1.4부터 현재가지 수정주가의 정보와 수정 거래량을 저장한다.
+
+실제 업데이트의 호출은 kor/update.py의 daily_update_for_today(n) 을 호출하면 자동으로 처리된다. 이 함수는
+시가총액 상위 n개의 주식들에 대해서 현재까지의 정보로 위 5개 폴더의 파일들에 대해서 업데이트를 진행하고, date에
+inconsistency가 있는지 점검한다.
+
+## 5. 수정주가 계산 방식
+
+인터넷에 검색해보면 수정주가가 고안된 이유는 증자나 감자, 액면분할, 배당 등을 고려하여 의미있는 주가 데이터를
+얻기 위함이라고 설명하고 있다.  
+https://dic.hankyung.com/economy/view/?seq=1327 를 참고하면 수정주가의 계산 방식에는 다우식과 환원식이 있다고
+한다. 하지만 KRX에서 어떻게 수정주가를 계산하는지에 대한 정보는 찾지 못해서 직접 찾아보았다.
+
+결론적으로는 수정주가는 증자나 감자로 인한 권리락, 액면분할/병합으로 인한 액면가 변화만 반영하고 배당락은
+고려하지 않는다. 예를 들어 삼성전자만 봐도 야후 파이낸스 등과 비교했을 때 배당락이 전혀 고려되지 않고
+있음을 볼 수 있다.
+
+그렇다면 주가 daily 데이터만 가지고 어떻게 증자/감자/액면가 변화가 있었는지 알 수 있을까?
+
+바로 연속한 두 일자에 대해서 전날의 종가가 예상 종가 ((오늘의 종가)-(오늘의 가격대비)로 계산)와 같은지 비교하고,
+다르면 전날까지의 모든 주가 데이터에 대해서 (예상 종가/전날 종가)를 곱하면 된다.
+
+crawling/kor/adjust.py 에서 실제로 이렇게 수정주가를 raw_span에서 추출해서 실제 수정주가 KRX 쿼리 결과와
+비교했더니 오차 1원 이하로 모두 일치했다.
+
+## 6. API
+
+현재까지는 파이썬 패키지 방식의 API만 구현하였다. 사용 가능한 함수는 다음과 같다.
+
+ - get_daily_quotation : 주어진 date의 전종목 시세 데이터 리턴
+ - get_span_quotation : 주어진 타겟의 전체 기간동안 데이터 리턴
+ - get_basic_information : 현재 시점의 전종목 기본정보 리턴
+
+## 7. DB 연동(TODO)
+
+
+
+## 8. My Learnings
 
 Adj Close is only available in `개별종목 시세`
 

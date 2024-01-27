@@ -8,8 +8,8 @@ base_path = os.path.dirname(os.path.abspath(__file__))
 
 def adjust_target_file(target):
     """
-    read /data/raw_span/target.csv and adjust, save it to /data/adj_span/target.csv
-    :param target:
+    read /data/raw_span/target.csv and adjust, save it to /data/adj_span_from_calc_for_test/target.csv
+    :param target: stock code string
     :return:
     """
     read_path = base_path + "/data/raw_span/" + target + ".csv"
@@ -38,16 +38,21 @@ def adjust_target_file(target):
         decimals=0)
     df[['종가', '대비', '시가', '고가', '저가', '거래량', '상장주식수']] = df[['종가', '대비', '시가', '고가', '저가', '거래량', '상장주식수']].astype(
         'int64')
-    df.to_csv(base_path + "/data/adj_span/" + target + ".csv", encoding='euc-kr', index=False)
+    df.to_csv(base_path + "/data/adj_span_from_calc_for_test/" + target + ".csv", encoding='euc-kr', index=False)
     pass
 
 
-def compare_adjquery_adjcustom(n=400):
+def compare_adjquery_adjcustom():
+    """
+    compare calculated span and queried span
+    :param n:
+    :return:
+    """
     stockinfo = builder.collect_targets_sorted()
     for _, row in stockinfo.iterrows():
         stock_code = row['종목코드']
         path_query = base_path + "/data/adj_span_from_query/" + stock_code + ".csv"
-        path_adj = base_path + "/data/adj_span/" + stock_code + ".csv"
+        path_adj = base_path + "/data/adj_span_from_calc_for_test/" + stock_code + ".csv"
         if os.path.exists(path_query) and os.path.exists(path_adj):
             df_query = pd.read_csv(path_query, encoding='euc-kr',dtype='str')
             df_adj = pd.read_csv(path_adj, encoding='euc-kr',dtype='str')
@@ -62,11 +67,20 @@ def compare_adjquery_adjcustom(n=400):
 
 
 def build_adjust_folder():
+    """
+    adjust for every target
+    :return:
+    """
     stockinfo = builder.collect_targets_sorted()
     for i, row in stockinfo.iterrows():
         adjust_target_file(row['종목코드'])
 
 def build_file_w_adj_volume(target):
+    """
+    build adjusted span file with adj volume for the given target
+    :param target:
+    :return:
+    """
     path_query = base_path + "/data/adj_span_from_query/"+target+".csv"
     path_raw = base_path + "/data/raw_span/"+target+".csv"
     if not os.path.exists(path_query) or not os.path.exists(path_raw):
