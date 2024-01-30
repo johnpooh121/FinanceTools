@@ -3,6 +3,8 @@ import os
 import builder
 import datetime as dt
 
+from crawling.kor import collect_sorted
+
 base_path = os.path.dirname(os.path.abspath(__file__))
 
 
@@ -48,7 +50,7 @@ def compare_adjquery_adjcustom():
     :param n:
     :return:
     """
-    stockinfo = builder.collect_targets_sorted()
+    stockinfo = collect_sorted.collect_targets_sorted()
     for _, row in stockinfo.iterrows():
         stock_code = row['종목코드']
         path_query = base_path + "/data/adj_span_from_query/" + stock_code + ".csv"
@@ -71,7 +73,7 @@ def build_adjust_folder():
     adjust for every target
     :return:
     """
-    stockinfo = builder.collect_targets_sorted()
+    stockinfo = collect_sorted.collect_targets_sorted()
     for i, row in stockinfo.iterrows():
         adjust_target_file(row['종목코드'])
 

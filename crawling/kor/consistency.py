@@ -1,7 +1,7 @@
 """
 check consistency
 """
-
+from crawling.kor import collect_sorted
 from util import *
 import builder
 
@@ -13,7 +13,7 @@ def date_check(dir_name='raw_span',do_correction=False):
     :return: None
     """
     print("inspecting ",dir_name,"\n")
-    stockinfo = builder.collect_targets_sorted()
+    stockinfo = collect_sorted.collect_targets_sorted()
     for i, (j, stock) in enumerate(stockinfo.iterrows()):
         stockcode = stock['종목코드']
         path = base_path + "/data/"+dir_name+"/" + stockcode + ".csv"
@@ -33,7 +33,7 @@ def date_check(dir_name='raw_span',do_correction=False):
                 df.loc[:k].to_csv(path, encoding='euc-kr', index=False)
 
 def adjprice_check(dir_name='adj_span_from_query'):
-    stockinfo = builder.collect_targets_sorted()
+    stockinfo = collect_sorted.collect_targets_sorted()
     for i, (j, stock) in enumerate(stockinfo.iterrows()):
         stockcode = stock['종목코드']
         path = base_path + "/data/" + dir_name + "/" + stockcode + ".csv"

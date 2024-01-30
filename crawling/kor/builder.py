@@ -3,10 +3,11 @@ build files from scratch
 """
 import os.path
 import time
-
+from db import builder,update
 from crawling.kor import sender
 from crawling.kor.util import *
-from crawling.kor import db
+import collect_sorted
+
 
 base_path = os.path.dirname(os.path.abspath(__file__))
 base_date = dt.datetime(year=2010, month=1, day=4)
@@ -67,7 +68,9 @@ def build_daily_quotation(date, realtime=False):
         cnt += 1
         print(str(cnt) + "th trying..\n")
         sender.sendquery('daily', date=date)
-        db.builder.make_table_daily(date)
+        if os.path.isfile(path):
+            builder.load_csv('daily',date=date)
+            break
 
     if not os.path.isfile(path):
         print("build failed!\n")
@@ -75,17 +78,17 @@ def build_daily_quotation(date, realtime=False):
     return path
 
 
-def collect_targets_sorted(date=nearest_updateable_date_before_now()):
-    """
-    Return stock information table sorted by market cap on a given date
-    :param date:
-    :return: sorted stock information
-    """
-    path = build_daily_quotation(date)
-    daily_df = pd.read_csv(path, encoding='euc-kr', dtype='str')
-    daily_df = daily_df.astype({'시가총액': 'int64'})
-    sorted_df = daily_df.sort_values(by=['시가총액'], ascending=False)
-    return sorted_df
+# def collect_targets_sorted(date=nearest_updateable_date_before_now()):
+#     """
+#     Return stock information table sorted by market cap on a given date
+#     :param date:
+#     :return: sorted stock information
+#     """
+#     path = build_daily_quotation(date)
+#     daily_df = pd.read_csv(path, encoding='euc-kr', dtype='str')
+#     daily_df = daily_df.astype({'시가총액': 'int64'})
+#     sorted_df = daily_df.sort_values(by=['시가총액'], ascending=False)
+#     return sorted_df
 
 
 def collect_top_n_stock_until(n, adj=True):
@@ -95,7 +98,7 @@ def collect_top_n_stock_until(n, adj=True):
     :param adj: whether to adjust the price or not
     :return: None
     """
-    stockinfo = collect_targets_sorted()
+    stockinfo = collect_sorted.collect_targets_sorted()
     count = 0
     for i, (_i_, stock) in enumerate(stockinfo.iterrows()):
         if i >= n: break
@@ -145,7 +148,7 @@ def build_basic_information_today():
         print(str(cnt) + "th trying for basic info get..\n")
         sender.sendquery('basic')
     if os.path.isfile(path):
-        db.builder.make_table_basic(dt.datetime.now()) # db
+        builder.load_csv('basic',date=dt.datetime.now()) # db
         return True
 
     print("basic query failed!\n");
@@ -153,4 +156,6 @@ def build_basic_information_today():
 
 
 if __name__ == '__main__':
+    # update.db_auto_update_from_csv_basic()
+    # builder.load_csv('basic',date=dt.datetime.now())
     pass

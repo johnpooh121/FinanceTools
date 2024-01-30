@@ -107,6 +107,13 @@ def code_to_isucd(target):
     return search_code['표준코드'].values[0]
     pass
 
+def file_path(type,adj=False,target='005930',date=nearest_updateable_date_before_now()):
+    if type=='span':
+        return base_path+"/data/"+('adj_' if adj else 'raw_')+'span/'+target+'.csv'
+    if type=='daily':
+        return base_path+"/data/daily/"+file_name('daily',date=date)
+    if type=='basic':
+        return base_path+"/data/basic/"+file_name('basic',date=date)
 
 if __name__ == '__main__':
     pass
