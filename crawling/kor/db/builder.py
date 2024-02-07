@@ -109,7 +109,7 @@ def load_csv(type,adj=False,date=nearest_updateable_date_before_now(),target = '
 def add_row(adj, target, row):
     tname = ('raw_' if not adj else 'adj_') + 'span'
     with connection.cursor() as cursor:
-        sql = f"""insert into {tname}
+        sql = f"""insert ignore into {tname}
              values (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
         """
         cursor.execute(sql, [target]+row.to_list())

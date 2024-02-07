@@ -13,7 +13,7 @@ def daily_update_for_today(n=400):
     :param n: how many stocks to update
     :return:
     """
-
+    db.builder.make_every_table()
     builder.build_basic_information_today()
     date = nearest_updateable_date_before_now()
     builder.build_daily_quotation(date)
@@ -21,8 +21,8 @@ def daily_update_for_today(n=400):
     update_query_span_auto(n)
     update_adj_span_auto(n)
     consistency.date_check(dir_name='raw_span', do_correction=True)
-    consistency.date_check(dir_name='adj_span_from_query', do_correction=True)
-    consistency.date_check(dir_name='adj_span', do_correction=True)
+    # consistency.date_check(dir_name='adj_span_from_query', do_correction=True)
+    # consistency.date_check(dir_name='adj_span', do_correction=True)
 
 
 def update_raw_span(n, date=nearest_opendate_before(dt.datetime.now() - dt.timedelta(days=1))):
@@ -48,6 +48,12 @@ def update_raw_span(n, date=nearest_opendate_before(dt.datetime.now() - dt.timed
             continue
         if not os.path.exists(path):
             continue
+
+        val = row[['종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수']]
+        val['일자'] = date.strftime('%Y/%m/%d')
+        db.builder.add_row(False, stock_code,
+                           val[['일자', '종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수']])
+
         df = pd.read_csv(path, encoding='euc-kr', dtype='str')
         last_date = dt.datetime.strptime(df.iloc[len(df) - 1]['일자'], "%Y/%m/%d")
         if last_date.date() >= date.date():
@@ -57,12 +63,10 @@ def update_raw_span(n, date=nearest_opendate_before(dt.datetime.now() - dt.timed
             print(stock_code, " : date inconsistency detected!\n")
             builder.build_span(stock_code, adj=False)
             continue
-        val = row[['종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수']]
-        val['일자'] = date.strftime('%Y/%m/%d')
+
         val.to_frame().T.to_csv(path, encoding='euc-kr', index=False, mode='a', header=False,
                                 columns=['일자', '종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수'], )
-        db.builder.add_row(False, stock_code,
-                           val[['일자', '종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수']])
+
 
 
 def update_query_span(n, date=nearest_opendate_before(dt.datetime.now() - dt.timedelta(days=1))):
@@ -145,6 +149,11 @@ def update_adj_span(n, date=nearest_opendate_before(dt.datetime.now() - dt.timed
             continue
 
         df = pd.read_csv(path, encoding='euc-kr', dtype='str').dropna()
+        val = row[['종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수']]
+        val['일자'] = date.strftime('%Y/%m/%d')
+        db.builder.add_row(True, stock_code,
+                           val[['일자', '종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수']])
+
         last_date = dt.datetime.strptime(df.iloc[len(df) - 1]['일자'], "%Y/%m/%d")
         if last_date.date() >= date.date():
             print(stock_code, " : already filled\n");
@@ -153,12 +162,10 @@ def update_adj_span(n, date=nearest_opendate_before(dt.datetime.now() - dt.timed
             print(stock_code, " : date inconsistency detected!\n")
             builder.build_span(stock_code, adj=True)
             continue
-        val = row[['종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수']]
-        val['일자'] = date.strftime('%Y/%m/%d')
+
         val.to_frame().T.to_csv(path, encoding='euc-kr', index=False, mode='a', header=False,
                                 columns=['일자', '종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수'], )
-        db.builder.add_row(True, stock_code,
-                           val[['일자', '종가', '대비', '등락률', '시가', '고가', '저가', '거래량', '거래대금', '시가총액', '상장주식수']])
+
 
 
 def get_oldest_date(n, folder_name):
